@@ -1,4 +1,4 @@
-import { track, trigger } from './index'
+import { track, trigger } from './effect'
 
 export function reactive(obj) {
   return new Proxy(obj, {
