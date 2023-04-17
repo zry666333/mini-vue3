@@ -1,47 +1,67 @@
-import { extend } from './shared/index'
-import { reactive } from './reactive';
+import { extend } from "./shared/index";
+import { newTracked, wasTracked,initDepMarkers, finalizeDepMarkers } from "./dep";
 
 const targetMap = new WeakMap();
 
 let activeEffect;
 
-let activeEffectStack:any[] = [];
+let activeEffectStack: any[] = [];
 
-const jobQueue:Set<any> = new Set();
+const jobQueue: Set<any> = new Set();
 
 let isFlushing = false;
 
 const p = Promise.resolve();
 
+// 副作用递归深度
+let effectTrackDepth = 0;
+
+// 优化标志位
+export let trackOpBit = 1;
+
+const maxMarkerBits = 30;
 
 
 export class ReactiveEffect {
-  deps = []
+  deps = [];
   constructor(public fn, scheduler?) {}
 
-  run(){
-    // 通过activeEffect传递响应式副作用
-    activeEffect = this
-    activeEffectStack.push(this)
-    cleanupEffect(this)
-    const result = this.fn()
-    // 回溯响应式副作用
-    activeEffectStack.pop();
-    activeEffect =activeEffectStack[activeEffectStack.length - 1];
-    return result
+  run() {
+    try {
+      // 通过activeEffect传递响应式副作用
+      activeEffect = this;
+      trackOpBit = 1 << ++effectTrackDepth;
+      if (effectTrackDepth <= maxMarkerBits) {
+        initDepMarkers(this);
+      } else {
+        cleanupEffect(this);
+      }
+      activeEffectStack.push(this);
+      return this.fn();
+    } finally {
+      if (effectTrackDepth <= maxMarkerBits) {
+        finalizeDepMarkers(this);
+      }
+
+      trackOpBit = 1 << --effectTrackDepth;
+      // 回溯响应式副作用
+      activeEffectStack.pop();
+      activeEffect = activeEffectStack[activeEffectStack.length - 1];
+    }
   }
 }
 
 function cleanupEffect(effect) {
   // 清除响应式副作用所在的依赖中的自身
-  effect.deps.forEach(dep => {
-    dep.delete(effect)
+  effect.deps.forEach((dep) => {
+    dep.delete(effect);
   });
   effect.deps.length = 0;
 }
 
 export function track(target, key) {
   if (!activeEffect) return;
+
   let deps = targetMap.get(target);
   if (!deps) {
     targetMap.set(target, (deps = new Map()));
@@ -50,62 +70,54 @@ export function track(target, key) {
   if (!dep) {
     deps.set(key, (dep = new Set()));
   }
-  dep.add(activeEffect);
-  activeEffect.deps.push(dep);
+  trackEffect(dep);
+}
+
+function trackEffect(dep) {
+  // 副作用是否应该收集
+  let shouldTrack = false;
+  if (effectTrackDepth <= maxMarkerBits) {
+    // 没有打上新标记位的打上本轮标记
+    if (!newTracked(dep)) {
+      dep.n |= trackOpBit;
+      shouldTrack = !wasTracked(dep);
+    }
+  } else {
+    shouldTrack = dep.has(activeEffect);
+  }
+  if (shouldTrack) {
+    dep.add(activeEffect);
+    activeEffect.deps.push(dep);
+  }
 }
 
 export function trigger(target, key) {
   const deps = targetMap.get(target);
   if (!deps) return;
   const effects = deps.get(key);
-  const effectsToRun:Set<any> = new Set(effects);
+  const effectsToRun: Set<any> = new Set(effects);
   effectsToRun.forEach((effect) => {
     if (effect === activeEffect) return;
-    if (effect.options) {
-      const { scheduler } = effect.options;
-      scheduler && scheduler(effect);
+    if (effect.scheduler) {
+      // const { scheduler } = effect.options;
+      effect.scheduler(effect);
     } else {
       effect.run();
     }
   });
 }
 
-function cleanup(effect) {
-  effect.deps.forEach((dep) => {
-    dep.delete(effect);
-  });
-  effect.deps = [];
-}
-
-// export function effect(fn, options) {
-//   function effectFn() {
-//     activeEffect = effectFn;
-//     activeEffectStack.push(effectFn);
-//     cleanup(activeEffect);
-//     const res = fn();
-//     activeEffectStack.pop();
-//     activeEffect = activeEffectStack[activeEffectStack.length - 1];
-//     return res;
-//   }
-//   if (!effectFn.deps) effectFn.deps = [];
-//   options && (effectFn.options = options);
-//   if (options && options.lazy) {
-//     return effectFn;
-//   }
-//   effectFn();
-// }
-
-export function effect(fn, options:any = {}) {
+export function effect(fn, options: any = {}) {
   const _effect = new ReactiveEffect(fn);
   // 把options挂到响应式副作用上
-  extend(_effect, options)
-  if (!options.lazy) {
-    _effect.run()
+  extend(_effect, options);
+  if (!(_effect as any).lazy) {
+    _effect.run();
   }
   // 将响应式副作用的执行能力抛出
-  const runner = _effect.run.bind(_effect)
-  runner.effect = _effect
-  return runner
+  const runner = _effect.run.bind(_effect);
+  runner.effect = _effect;
+  return runner;
 }
 
 function flushJob() {
@@ -186,4 +198,3 @@ export function watch(source, callback, options) {
     oldValue = effectFn();
   }
 }
-

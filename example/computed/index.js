@@ -1,4 +1,4 @@
-import {reactive, computed} from '../../lib/mini-vue.esm'
+import {reactive, computed} from '../../lib/mini-vue.esm.js'
 
 const state = reactive({
   name: 'hello'
