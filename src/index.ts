@@ -1,3 +1,5 @@
-export {reactive } from './reactive'
+export { reactive } from "./reactive";
 
-export { effect, computed, watch } from './effect'
+export { effect, computed, watch } from "./effect";
+
+export { effectScope } from "./effectScope";

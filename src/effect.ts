@@ -1,5 +1,11 @@
 import { extend } from "./shared/index";
-import { newTracked, wasTracked,initDepMarkers, finalizeDepMarkers } from "./dep";
+import {
+  newTracked,
+  wasTracked,
+  initDepMarkers,
+  finalizeDepMarkers,
+} from "./dep";
+import { recordEffectScope } from "./effectScope";
 
 const targetMap = new WeakMap();
 
@@ -21,12 +27,28 @@ export let trackOpBit = 1;
 
 const maxMarkerBits = 30;
 
-
 export class ReactiveEffect {
+  // 激活标注位，表示当该副作用是否需要被收集
+  active = true;
+
   deps = [];
-  constructor(public fn, scheduler?) {}
+
+  onStop?;
+
+  // 推迟停止
+  // 当activeEffect=this时并且scope.stop()在obj.msg之前调用时，因为响应式还没收集所以停止失败
+  // 所以需要推迟stop,直到用户传入的回调执行完毕，保证响应式副作用被收集后再停止
+  private deferStop?;
+
+  constructor(public fn, scheduler?, scope?) {
+    recordEffectScope(this, scope);
+  }
 
   run() {
+    if (!this.active) {
+      // 不被收集
+      return this.fn();
+    }
     try {
       // 通过activeEffect传递响应式副作用
       activeEffect = this;
@@ -47,6 +69,22 @@ export class ReactiveEffect {
       // 回溯响应式副作用
       activeEffectStack.pop();
       activeEffect = activeEffectStack[activeEffectStack.length - 1];
+      if (this.deferStop) {
+        this.stop();
+      }
+    }
+  }
+
+  // 使该响应式副作用失效，并在依赖中删除
+  stop() {
+    if (activeEffect === this) {
+      this.deferStop = true;
+    } else if (this.active) {
+      cleanupEffect(this);
+      if (this.onStop) {
+        this.onStop();
+      }
+      this.active = false;
     }
   }
 }
@@ -56,6 +94,7 @@ function cleanupEffect(effect) {
   effect.deps.forEach((dep) => {
     dep.delete(effect);
   });
+  // 清空effect.deps对dep的引用
   effect.deps.length = 0;
 }
 
@@ -107,10 +146,15 @@ export function trigger(target, key) {
   });
 }
 
-export function effect(fn, options: any = {}) {
+export function effect(fn, options?: any) {
   const _effect = new ReactiveEffect(fn);
   // 把options挂到响应式副作用上
-  extend(_effect, options);
+  if (options) {
+    extend(_effect, options);
+    // 通过配置项手动传入scope来收集当前的响应式副作用
+    if (options.scope) recordEffectScope(_effect, options.scope);
+  }
+
   if (!(_effect as any).lazy) {
     _effect.run();
   }
