@@ -13,12 +13,6 @@ let activeEffect;
 
 let activeEffectStack: any[] = [];
 
-const jobQueue: Set<any> = new Set();
-
-let isFlushing = false;
-
-const p = Promise.resolve();
-
 // 副作用递归深度
 let effectTrackDepth = 0;
 
@@ -40,7 +34,7 @@ export class ReactiveEffect {
   // 所以需要推迟stop,直到用户传入的回调执行完毕，保证响应式副作用被收集后再停止
   private deferStop?;
 
-  constructor(public fn, scheduler?, scope?) {
+  constructor(public fn, public scheduler?, scope?) {
     recordEffectScope(this, scope);
   }
 
@@ -155,21 +149,13 @@ export function effect(fn, options?: any) {
     if (options.scope) recordEffectScope(_effect, options.scope);
   }
 
-  if (!(_effect as any).lazy) {
+  if (!options || !options.lazy) {
     _effect.run();
   }
   // 将响应式副作用的执行能力抛出
   const runner = _effect.run.bind(_effect);
   runner.effect = _effect;
   return runner;
-}
-
-function flushJob() {
-  if (isFlushing) return;
-  p.then(() => {
-    jobQueue.forEach((effect) => effect());
-    isFlushing = false;
-  });
 }
 
 export function computed(getter) {

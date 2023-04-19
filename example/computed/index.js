@@ -1,17 +1,21 @@
-import {reactive, computed} from '../../lib/mini-vue.esm.js'
+import { reactive, computed, effectScope } from "../../lib/mini-vue.esm.js";
 
 const state = reactive({
-  name: 'hello'
-})
+  name: "hello",
+});
 
-const computedValue = computed(() => {
-  console.log('computed执行')
-  return state.name + ' vue3'
-})
+const scope = effectScope();
 
-console.log(computedValue.value)
+scope.run(() => {
+  const computedValue = computed(() => {
+    console.log("computed执行");
+    return state.name + " vue3";
+  });
 
-setTimeout(() => {
-  state.name = 'nnn'
-  console.log(computedValue.value)
-}, 3000);
+  console.log(computedValue.value);
+
+  setTimeout(() => {
+    state.name = "nnn";
+    console.log(computedValue.value);
+  }, 3000);
+});
