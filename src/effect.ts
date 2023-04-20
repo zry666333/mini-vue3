@@ -158,33 +158,6 @@ export function effect(fn, options?: any) {
   return runner;
 }
 
-export function computed(getter) {
-  let value;
-  let dirty = true;
-  const effectFn = effect(getter, {
-    lazy: true,
-    scheduler() {
-      if (!dirty) {
-        dirty = true;
-        trigger(obj, "value");
-      }
-    },
-  });
-
-  const obj = {
-    get value() {
-      track(obj, "value");
-      if (!dirty) {
-        return value;
-      }
-      value = effectFn();
-      dirty = false;
-      return value;
-    },
-  };
-  return obj;
-}
-
 function traverse(value, seen = new Set()) {
   if (typeof value !== "object" || value === null || seen.has(value)) return;
   seen.add(value);
