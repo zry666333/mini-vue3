@@ -1,21 +1,23 @@
-let activeEffectScope;
+import { ReactiveEffect } from "./effect";
+
+let activeEffectScope: EffectScope | undefined;
 
 export class EffectScope {
   // 失活标志位，用于剪枝不会多次触发this.stop()
   private _active = true;
 
   // 嵌套时收集子scope
-  scopes;
+  scopes: EffectScope[] | undefined;
 
   effects: any[] = [];
 
-  cleanups = [];
+  cleanups: (() => void)[] = [];
 
   private index;
 
   // 嵌套上保留对上一级的引用
   // 在该scope关闭上，需要通过该项，从其父scope中移除对子scope的引用
-  parent;
+  parent: EffectScope | undefined;
 
   constructor(public detached = false) {
     // 最外层scope的parent为undefined，嵌套scope的parent指向上一层的scope
@@ -30,8 +32,12 @@ export class EffectScope {
     }
   }
 
+  get active() {
+    return this._active;
+  }
+
   // 调用用户传入的回调，并开始收集响应式副作用
-  run(fn) {
+  run<T>(fn: () => T): T {
     // 嵌套副作用时用来指向之前的副作用
     const currentEffectScope = activeEffectScope;
     try {
@@ -45,7 +51,7 @@ export class EffectScope {
     }
   }
 
-  stop(fromParent?) {
+  stop(fromParent?: boolean) {
     if (this._active) {
       let i, l;
       for (i = 0, l = this.effects.length; i < l; i++) {
@@ -68,7 +74,7 @@ export class EffectScope {
         const last = this.parent.scopes!.pop();
         if (last && last !== this) {
           // 这是一个O(1)的删除操作，类似在数组中删除某一项而不引起数组的重排
-          this.parent.scopes[this.index] = last;
+          this.parent.scopes![this.index] = last;
           last.index = this.index;
         }
       }
@@ -80,20 +86,23 @@ export class EffectScope {
 
 // 实例化一个effectscope
 // detached是一个分离标志，表示在嵌套scope中，detached为true的子scope也可以认为是一个独立于父scope的存在,但是parent的引用保留
-export function effectScope(detached?: false) {
+export function effectScope(detached?: boolean) {
   return new EffectScope(detached);
 }
 
 // 让scope收集响应式副作用
-export function recordEffectScope(effect, scope = activeEffectScope) {
-  scope.effects.push(effect);
+export function recordEffectScope(
+  effect: ReactiveEffect,
+  scope: EffectScope | undefined = activeEffectScope
+) {
+  if (scope && scope.active) scope.effects.push(effect);
 }
 
 export function getCurrentScope() {
   return activeEffectScope;
 }
 
-export function onScopeDispose(fn) {
+export function onScopeDispose(fn: () => void) {
   if (activeEffectScope) {
     activeEffectScope.cleanups.push(fn);
   }

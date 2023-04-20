@@ -1,11 +1,11 @@
 import {
-  reactive,
+  shallowReactive,
   effect,
   queueJob,
   effectScope,
 } from "../../lib/mini-vue.esm.js";
 
-const obj = reactive({
+const obj = shallowReactive({
   msg: "hello world",
   data: {
     msg: "hello vue3",

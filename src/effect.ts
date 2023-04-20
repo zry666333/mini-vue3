@@ -140,6 +140,11 @@ export function trigger(target, key) {
   });
 }
 
+export interface ReactiveEffectRunner {
+  (): any;
+  effect: ReactiveEffect;
+}
+
 export function effect(fn, options?: any) {
   const _effect = new ReactiveEffect(fn);
   // 把options挂到响应式副作用上
@@ -153,7 +158,7 @@ export function effect(fn, options?: any) {
     _effect.run();
   }
   // 将响应式副作用的执行能力抛出
-  const runner = _effect.run.bind(_effect);
+  const runner = _effect.run.bind(_effect) as ReactiveEffectRunner;
   runner.effect = _effect;
   return runner;
 }
