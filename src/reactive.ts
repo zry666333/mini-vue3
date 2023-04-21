@@ -1,15 +1,30 @@
-import { mutableHandlers, shallowReactiveHandlers } from "./baseHandlers";
+import {
+  mutableHandlers,
+  shallowReactiveHandlers,
+  readonlyHandlers,
+} from "./baseHandlers";
 
-const proxyMap = new WeakMap();
+export const enum ReactiveFlag {
+  IS_REACTIVE = "__v_isReactive",
+  RAW = "_v_raw",
+}
 
-const shallowReactiveMap = new WeakMap();
+export const reactiveMap = new WeakMap();
+
+export const shallowReactiveMap = new WeakMap();
+
+export const readonlyMap = new WeakMap();
 
 export function reactive(target: object) {
   // 如果target是只读的代理对象，则返回它本身
   if (isReadonly(target)) {
     return target;
   }
-  return createReactiveObject(target, false, mutableHandlers, proxyMap);
+  return createReactiveObject(target, false, mutableHandlers, reactiveMap);
+}
+
+export function readonly(target) {
+  return createReactiveObject(target, true, readonlyHandlers, readonlyMap);
 }
 
 export function shallowReactive(target: object) {
@@ -30,6 +45,13 @@ function createReactiveObject(
   baseHandlers,
   proxyMap
 ) {
+  if (
+    target[ReactiveFlag.RAW] &&
+    !(isReadonly && target[ReactiveFlag.IS_REACTIVE])
+  ) {
+    return target;
+  }
+
   // 获取缓存数据，有缓存就直接返回
   const existingProxy = proxyMap.get(target);
   if (existingProxy) {
