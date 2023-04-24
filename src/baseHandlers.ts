@@ -8,6 +8,7 @@ import {
   ReactiveFlag,
 } from "./reactive";
 import { isObject } from "./shared";
+import { ITERATE_KEY, TriggerType } from "./reactive";
 
 const readonlyGet = createGetter(true);
 
@@ -56,8 +57,21 @@ function createGetter(isReadonly = false, shallow = false) {
 
 function createSetter() {
   return (target, key, newValue, receiver) => {
+    const oldValue = target[key];
     Reflect.set(target, key, newValue, receiver);
-    trigger(target, key);
+    const type = Object.prototype.hasOwnProperty.call(target, key)
+      ? TriggerType.SET
+      : TriggerType.ADD;
+    // 只有访问的是target的代理对象才会触发trigger,否则原型对象上的属性也会触发
+    if (receiver[ReactiveFlag.RAW] === target) {
+      // 值不全等的时候才会trigger，NaN === NaN为false
+      if (
+        (oldValue !== newValue && oldValue === oldValue) ||
+        newValue === newValue
+      ) {
+        trigger(target, key, type);
+      }
+    }
     return true;
   };
 }
@@ -74,6 +88,25 @@ export const mutableHandlers = {
 export const shallowReactiveHandlers = {
   get: createGetter(false, true),
   set,
+  // 'foo' in obj
+  has(target, key) {
+    trigger(target, key);
+    return Reflect.has(target, key);
+  },
+  // for in
+  ownKeys(target) {
+    trigger(target, ITERATE_KEY);
+    return Reflect.ownKeys(target);
+  },
+  deleteProperty(target, key) {
+    // 是否存在key
+    const hadKey = Object.prototype.hasOwnProperty.call(target, key);
+    const res = Reflect.deleteProperty(target, key);
+    if (hadKey && res) {
+      trigger(target, key, TriggerType.DELETE);
+    }
+    return res;
+  },
 };
 
 export const readonlyHandlers = {

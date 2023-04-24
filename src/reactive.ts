@@ -4,6 +4,14 @@ import {
   readonlyHandlers,
 } from "./baseHandlers";
 
+export const ITERATE_KEY = Symbol();
+
+export const TriggerType = {
+  SET: "SET",
+  ADD: "ADD",
+  DELETE: "DELETE",
+};
+
 export const enum ReactiveFlag {
   IS_REACTIVE = "__v_isReactive",
   RAW = "_v_raw",
