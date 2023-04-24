@@ -48,7 +48,7 @@ function createGetter(isReadonly = false, shallow = false) {
     if (shallow) {
       return res;
     }
-    if (isObject(res)) {
+    if (isObject(res) && res !== null) {
       return isReadonly ? readonly(res) : reactive(res);
     }
     return res;
@@ -83,11 +83,6 @@ const set = createSetter();
 export const mutableHandlers = {
   get,
   set,
-};
-
-export const shallowReactiveHandlers = {
-  get: createGetter(false, true),
-  set,
   // 'foo' in obj
   has(target, key) {
     trigger(target, key);
@@ -107,6 +102,11 @@ export const shallowReactiveHandlers = {
     }
     return res;
   },
+};
+
+export const shallowReactiveHandlers = {
+  get: createGetter(false, true),
+  set,
 };
 
 export const readonlyHandlers = {
