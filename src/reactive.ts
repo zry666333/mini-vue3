@@ -2,6 +2,7 @@ import {
   mutableHandlers,
   shallowReactiveHandlers,
   readonlyHandlers,
+  shallowReadonlyHandlers
 } from "./baseHandlers";
 
 export const ITERATE_KEY = Symbol();
@@ -14,12 +15,16 @@ export const TriggerType = {
 
 export const enum ReactiveFlag {
   IS_REACTIVE = "__v_isReactive",
+  IS_READONLY = '__v_isReadonly',
+  IS_SHALLOW = '__v_isShallow',
   RAW = "_v_raw",
 }
 
 export const reactiveMap = new WeakMap();
 
 export const shallowReactiveMap = new WeakMap();
+export const shallowReadonlyMap = new WeakMap()
+
 
 export const readonlyMap = new WeakMap();
 
@@ -33,6 +38,10 @@ export function reactive(target: object) {
 
 export function readonly(target) {
   return createReactiveObject(target, true, readonlyHandlers, readonlyMap);
+}
+
+export function shallowReadonly(target) {
+  return createReactiveObject(target, true, shallowReadonlyHandlers,shallowReadonlyMap)
 }
 
 export function shallowReactive(target: object) {
@@ -54,6 +63,7 @@ function createReactiveObject(
   proxyMap
 ) {
   if (
+    // target是readonly或shallowReadonly创建的代理对象
     target[ReactiveFlag.RAW] &&
     !(isReadonly && target[ReactiveFlag.IS_REACTIVE])
   ) {
