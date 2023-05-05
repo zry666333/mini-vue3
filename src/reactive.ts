@@ -71,6 +71,7 @@ function createReactiveObject(
   }
 
   // 获取缓存数据，有缓存就直接返回
+  // 当对象嵌套对象时，内部对象每次都会调用reactive方法返回新的代理对象，reactive([obj]).includes(obj),所以需要避免原始对象多次创建对象的问题
   const existingProxy = proxyMap.get(target);
   if (existingProxy) {
     return existingProxy;

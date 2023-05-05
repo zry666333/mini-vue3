@@ -10,6 +10,10 @@ import { ITERATE_KEY, TriggerType } from './reactive'
 
 const targetMap = new WeakMap();
 
+export let shouldTrack = false;
+
+const trackStack = []
+
 let activeEffect;
 
 let activeEffectStack: any[] = [];
@@ -93,8 +97,18 @@ function cleanupEffect(effect) {
   effect.deps.length = 0;
 }
 
+export function pauseTracking() {
+  trackStack.push(shouldTrack)
+  shouldTrack = false;
+}
+
+export function resetTracking() {
+  const last = trackStack.pop();
+  shouldTrack = last === undefined ? true : last;
+}
+
 export function track(target, key) {
-  if (!activeEffect) return;
+  if (!activeEffect || !shouldTrack) return;
 
   let deps = targetMap.get(target);
   if (!deps) {
@@ -106,6 +120,8 @@ export function track(target, key) {
   }
   trackEffect(dep);
 }
+
+
 
 function trackEffect(dep) {
   // 副作用是否应该收集
@@ -125,7 +141,7 @@ function trackEffect(dep) {
   }
 }
 
-export function trigger(target, key, type?) {
+export function trigger(target, key, type?, newVal?) {
   const deps = targetMap.get(target);
   if (!deps) return;
   const effects = deps.get(key);
@@ -144,6 +160,29 @@ export function trigger(target, key, type?) {
       }
     })
   }
+
+  // 数组类型的代理对象在ADD时要将length属性相关的响应式副作用执行
+  if (type === TriggerType.ADD && Array.isArray(target)) {
+    const lengthEffects = deps.get('length');
+    lengthEffects && lengthEffects.forEach(effectFn => {
+      if (effectFn !== activeEffect) {
+        effectsToRun.add(effectFn)
+      }
+    })
+  }
+  // 当修改数组的length属性时，需要判断key是否大于等于newVal
+  if (Array.isArray(target) && key === 'length') {
+    deps.forEach((effects, key) => {
+      if (key>=newVal) {
+        effects.forEach(effectFn => {
+          if (effectFn !== activeEffect) {
+            effectsToRun.add(effectFn)
+          }
+        })
+      }
+    })
+  }
+
   effectsToRun.forEach((effect) => {
     if (effect.scheduler) {
       effect.scheduler(effect);
