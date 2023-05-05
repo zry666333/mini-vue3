@@ -4,23 +4,18 @@ const obj = reactive({
   msg: "hello world",
 });
 
-const obj2 = reactive({
-  msg: "hello effect",
-});
-
 const scope = effectScope();
 
 scope.run(() => {
   effect(() => {
-    scope.stop();
-    console.log(obj.msg);
-  });
-
-  effect(() => {
-    console.log(obj2.msg);
+    // scope.stop();
+    console.log("1", obj.msg);
+    effect(() => {
+      console.log("2", obj.msg);
+    });
   });
 });
 
 setTimeout(() => {
-  obj.msg = "1";
+  obj.msg = "hello";
 }, 1000);
