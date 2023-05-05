@@ -5,8 +5,8 @@ import {
   initDepMarkers,
   finalizeDepMarkers,
 } from "./dep";
-import { recordEffectScope } from "./effectScope";
 import { ITERATE_KEY, TriggerType } from './reactive'
+import { recordEffectScope } from "./effectScope";
 
 const targetMap = new WeakMap();
 
@@ -128,7 +128,7 @@ function trackEffect(dep) {
 export function trigger(target, key, type?) {
   const deps = targetMap.get(target);
   if (!deps) return;
-  const effects = deps.get(key);
+  const effects = deps.get(key);  
   //  获得遍历的响应式
   const iterateEffects = deps.get(ITERATE_KEY)
   const effectsToRun: Set<any> = new Set();
@@ -145,17 +145,13 @@ export function trigger(target, key, type?) {
     })
   }
   effectsToRun.forEach((effect) => {
+    if (effect === activeEffect) return;
     if (effect.scheduler) {
       effect.scheduler(effect);
     } else {
       effect.run();
     }
   });
-}
-
-export interface ReactiveEffectRunner {
-  (): any;
-  effect: ReactiveEffect;
 }
 
 export function effect(fn, options?: any) {
@@ -171,7 +167,7 @@ export function effect(fn, options?: any) {
     _effect.run();
   }
   // 将响应式副作用的执行能力抛出
-  const runner = _effect.run.bind(_effect) as ReactiveEffectRunner;
+  const runner = _effect.run.bind(_effect);
   runner.effect = _effect;
   return runner;
 }
