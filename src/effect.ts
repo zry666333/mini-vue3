@@ -10,9 +10,9 @@ import { ITERATE_KEY, TriggerType } from './reactive'
 
 const targetMap = new WeakMap();
 
-export let shouldTrack = false;
+let shouldTrack = false;
 
-const trackStack = []
+const trackStack:boolean[] = []
 
 let activeEffect;
 
@@ -120,8 +120,6 @@ export function track(target, key) {
   }
   trackEffect(dep);
 }
-
-
 
 function trackEffect(dep) {
   // 副作用是否应该收集

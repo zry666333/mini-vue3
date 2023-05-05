@@ -7,6 +7,11 @@ import {
 
 export const ITERATE_KEY = Symbol();
 
+export function toRaw(observed){
+  const raw = observed && observed[ReactiveFlag.RAW]
+  return raw ? toRaw(raw) : observed
+}
+
 export const TriggerType = {
   SET: "SET",
   ADD: "ADD",

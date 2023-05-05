@@ -6,37 +6,45 @@ import {
   shallowReactiveMap,
   readonlyMap,
   ReactiveFlag,
+  toRaw
 } from "./reactive";
-import { isObject,extend } from "./shared";
+import { isObject,extend,isIntegerKey, isArray, hasOwn } from "./shared";
 import { ITERATE_KEY, TriggerType } from "./reactive";
 
 const readonlyGet = createGetter(true);
 const shallowReadonlyGet = createGetter(true, true)
 
-const arrayInstrumentations = {};
+const arrayInstrumentations = createArrayInstrumentations();
 
-['includes', 'indexOf', 'lastIndexOf'].forEach(method => {
-  const originMethod = Array.prototype[method]
-  arrayInstrumentations[method] = function (...args) {
-    // this是代理对象，先在代理对象中查找
-    let res = originMethod.apply(this, args)
-    if (res === false) {
-      // 从原始对象中查找
-      res = originMethod.apply(this[ReactiveFlag.RAW], args)
+function createArrayInstrumentations() {
+  const instrumentations = {};
+
+  ['includes', 'indexOf', 'lastIndexOf'].forEach(method => {
+    const originMethod = Array.prototype[method]
+    instrumentations[method] = function (...args) {
+      // this是代理对象，先在代理对象中查找
+      let res = originMethod.apply(this, args)
+      if (res === false) {
+        // 从原始对象中查找
+        res = originMethod.apply(this[ReactiveFlag.RAW], args)
+      }
+      return res;
     }
-    return res;
-  }
-});
+  });
+  
+  ['push', 'pop', 'shift', 'unshift', 'splice'].forEach(method => {
+    const originMethod = Array.prototype[method];
+    instrumentations[method] = function(...args) {
+      pauseTracking()
+      let res = originMethod.apply(this, args)
+      resetTracking()
+      return res;
+    }
+  })
+  return instrumentations;
+}
 
-['push', 'pop', 'shift', 'unshift', 'splice'].forEach(method => {
-  const originMethod = Array.prototype[method];
-  arrayInstrumentations[method] = function(...args) {
-    pauseTracking()
-    let res = originMethod.apply(this, args)
-    resetTracking()
-    return res;
-  }
-})
+
 
 function createGetter(isReadonly = false, shallow = false) {
   return (target, key, receiver) => {
@@ -97,18 +105,17 @@ function createSetter() {
     const oldValue = target[key];
     Reflect.set(target, key, newValue, receiver);
     // 如果是数组的话，当设置的索引位大于等于数组长度的时候会隐式的修改length属性，所以要标记type为ADD
-    const type = Array.isArray(target) ? Number(key) < target.length ? TriggerType.SET: TriggerType.ADD : Object.prototype.hasOwnProperty.call(target, key)
-      ? TriggerType.SET
-      : TriggerType.ADD;
+    const hadKey = isArray(target) && isIntegerKey(key)
+    ? Number(key) < target.length : hasOwn(target, key);
+
     // 只有访问的是target的代理对象才会触发trigger,否则原型对象上的属性也会触发
-    if (receiver[ReactiveFlag.RAW] === target) {
+    if (target === toRaw(receiver)) {
       // 值不全等的时候才会trigger，NaN === NaN为false
-      if (
-        (oldValue !== newValue && oldValue === oldValue) ||
-        newValue === newValue
-      ) {
+      if (!hadKey) {
         // 针对数组的响应式，当修改length属性时需要比较length的值与索引值的大小，需传入newValue
-        trigger(target, key, type, newValue);
+        trigger(target, key, TriggerType.ADD, newValue);
+      } else {
+        trigger(target, key, TriggerType.SET, newValue);
       }
     }
     return true;
@@ -132,7 +139,7 @@ function ownKeys(target) {
 
 function deleteProperty(target, key) {
   // 是否存在key
-  const hadKey = Object.prototype.hasOwnProperty.call(target, key);
+  const hadKey = hasOwn(target, key);
   const res = Reflect.deleteProperty(target, key);
   if (hadKey && res) {
     trigger(target, key, TriggerType.DELETE,undefined);
