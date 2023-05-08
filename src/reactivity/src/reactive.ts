@@ -2,14 +2,14 @@ import {
   mutableHandlers,
   shallowReactiveHandlers,
   readonlyHandlers,
-  shallowReadonlyHandlers
+  shallowReadonlyHandlers,
 } from "./baseHandlers";
 
 export const ITERATE_KEY = Symbol();
 
-export function toRaw(observed){
-  const raw = observed && observed[ReactiveFlag.RAW]
-  return raw ? toRaw(raw) : observed
+export function toRaw(observed) {
+  const raw = observed && observed[ReactiveFlag.RAW];
+  return raw ? toRaw(raw) : observed;
 }
 
 export const TriggerType = {
@@ -20,16 +20,15 @@ export const TriggerType = {
 
 export const enum ReactiveFlag {
   IS_REACTIVE = "__v_isReactive",
-  IS_READONLY = '__v_isReadonly',
-  IS_SHALLOW = '__v_isShallow',
+  IS_READONLY = "__v_isReadonly",
+  IS_SHALLOW = "__v_isShallow",
   RAW = "_v_raw",
 }
 
 export const reactiveMap = new WeakMap();
 
 export const shallowReactiveMap = new WeakMap();
-export const shallowReadonlyMap = new WeakMap()
-
+export const shallowReadonlyMap = new WeakMap();
 
 export const readonlyMap = new WeakMap();
 
@@ -46,7 +45,12 @@ export function readonly(target) {
 }
 
 export function shallowReadonly(target) {
-  return createReactiveObject(target, true, shallowReadonlyHandlers,shallowReadonlyMap)
+  return createReactiveObject(
+    target,
+    true,
+    shallowReadonlyHandlers,
+    shallowReadonlyMap
+  );
 }
 
 export function shallowReactive(target: object) {

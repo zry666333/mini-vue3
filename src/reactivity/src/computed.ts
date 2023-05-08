@@ -1,5 +1,5 @@
 import { effect, trigger, track } from "./effect";
-import { isFunction } from "./shared";
+import { isFunction } from "../../shared";
 
 class ComputedRefImpl {
   // 缓存值

@@ -1,14 +1,18 @@
-import { extend } from "./shared/index";
+import { extend } from "../../shared/index";
 import {
   newTracked,
   wasTracked,
   initDepMarkers,
   finalizeDepMarkers,
 } from "./dep";
-import { ITERATE_KEY, TriggerType } from './reactive'
 import { recordEffectScope } from "./effectScope";
+import { ITERATE_KEY, TriggerType } from "./reactive";
 
 const targetMap = new WeakMap();
+
+let shouldTrack = false;
+
+const trackStack: boolean[] = [];
 
 let activeEffect;
 
@@ -93,8 +97,18 @@ function cleanupEffect(effect) {
   effect.deps.length = 0;
 }
 
+export function pauseTracking() {
+  trackStack.push(shouldTrack);
+  shouldTrack = false;
+}
+
+export function resetTracking() {
+  const last = trackStack.pop();
+  shouldTrack = last === undefined ? true : last;
+}
+
 export function track(target, key) {
-  if (!activeEffect) return;
+  if (!activeEffect || !shouldTrack) return;
 
   let deps = targetMap.get(target);
   if (!deps) {
@@ -125,33 +139,63 @@ function trackEffect(dep) {
   }
 }
 
-export function trigger(target, key, type?) {
+export function trigger(target, key, type?, newVal?) {
   const deps = targetMap.get(target);
   if (!deps) return;
-  const effects = deps.get(key);  
+  const effects = deps.get(key);
   //  获得遍历的响应式
-  const iterateEffects = deps.get(ITERATE_KEY)
+  const iterateEffects = deps.get(ITERATE_KEY);
   const effectsToRun: Set<any> = new Set();
-  effects && effects.forEach(effectFn => {
-    if (effectFn !== activeEffect) {
-      effectsToRun.add(effectFn)
-    }
-  })
-  if (type === TriggerType.ADD || type===TriggerType.DELETE) {
-    iterateEffects && iterateEffects.forEach(effectFn => {
+  effects &&
+    effects.forEach((effectFn) => {
       if (effectFn !== activeEffect) {
-        effectsToRun.add(effectFn)
+        effectsToRun.add(effectFn);
       }
-    })
+    });
+  if (type === TriggerType.ADD || type === TriggerType.DELETE) {
+    iterateEffects &&
+      iterateEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectsToRun.add(effectFn);
+        }
+      });
   }
+
+  // 数组类型的代理对象在ADD时要将length属性相关的响应式副作用执行
+  if (type === TriggerType.ADD && Array.isArray(target)) {
+    const lengthEffects = deps.get("length");
+    lengthEffects &&
+      lengthEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectsToRun.add(effectFn);
+        }
+      });
+  }
+  // 当修改数组的length属性时，需要判断key是否大于等于newVal
+  if (Array.isArray(target) && key === "length") {
+    deps.forEach((effects, key) => {
+      if (key >= newVal) {
+        effects.forEach((effectFn) => {
+          if (effectFn !== activeEffect) {
+            effectsToRun.add(effectFn);
+          }
+        });
+      }
+    });
+  }
+
   effectsToRun.forEach((effect) => {
-    if (effect === activeEffect) return;
     if (effect.scheduler) {
       effect.scheduler(effect);
     } else {
       effect.run();
     }
   });
+}
+
+export interface ReactiveEffectRunner {
+  (): any;
+  effect: ReactiveEffect;
 }
 
 export function effect(fn, options?: any) {
@@ -167,7 +211,7 @@ export function effect(fn, options?: any) {
     _effect.run();
   }
   // 将响应式副作用的执行能力抛出
-  const runner = _effect.run.bind(_effect);
+  const runner = _effect.run.bind(_effect) as ReactiveEffectRunner;
   runner.effect = _effect;
   return runner;
 }
