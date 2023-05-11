@@ -152,7 +152,7 @@ export function trigger(target, key, type?, newVal?) {
         effectsToRun.add(effectFn);
       }
     });
-  if (type === TriggerType.ADD || type === TriggerType.DELETE) {
+  if (type === TriggerType.ADD || type === TriggerType.DELETE || (type === TriggerType.SET && Object.prototype.toString.call(target) === '[object Map]')) {
     iterateEffects &&
       iterateEffects.forEach((effectFn) => {
         if (effectFn !== activeEffect) {
