@@ -1,4 +1,5 @@
 import { extend } from "../../shared/index";
+import { MAP_KEY_ITERATE_KEY } from "./collectionHandlers";
 import {
   newTracked,
   wasTracked,
@@ -159,6 +160,13 @@ export function trigger(target, key, type?, newVal?) {
           effectsToRun.add(effectFn);
         }
       });
+  }
+  if ((type === TriggerType.ADD || type === TriggerType.DELETE) && Object.prototype.toString.call(target) === '[object Map]' ) {
+    const iterateEffects = deps.get(MAP_KEY_ITERATE_KEY);
+    iterateEffects && iterateEffects.forEach(effectFn => {
+      effectsToRun.add(effectFn)
+    })
+
   }
 
   // 数组类型的代理对象在ADD时要将length属性相关的响应式副作用执行

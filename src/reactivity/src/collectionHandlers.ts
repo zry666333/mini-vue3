@@ -1,6 +1,50 @@
 import { track, trigger } from "./effect"
 import { ITERATE_KEY, reactive } from "./reactive";
 
+export const MAP_KEY_ITERATE_KEY = Symbol();
+
+function keysIterationMethod() {
+  const target = this.raw;
+  const itr = target.keys()
+  const wrap =(val) => typeof val === 'object' ? reactive(val) : val;
+  track(target, MAP_KEY_ITERATE_KEY);
+  return {
+    next() {
+      const {value,done} = itr();
+      return {
+        value: wrap(value),
+        done
+      }
+    },
+    [Symbol.iterator]() {
+      return this;
+    }
+  }
+  
+}
+
+function iterationMethod(){
+  const target = this['raw'];
+  const itr = target[Symbol.iterator]()
+  const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val;
+  // 调用track函数建立响应联系
+  track(target, ITERATE_KEY)
+  return {
+    next() {
+      const {value, done} = itr.next()
+      return {
+        // 如果迭代的数据是可被代理的，应该返回代理值
+        value: value ? [wrap(value[0]), wrap(value[1])] :value,
+        done
+      }
+    },
+    // 实现可迭代协议
+    [Symbol.iterator]() {
+      return this;
+    }
+  };
+}
+
 const mutableInstrumentations = {
   add(key) {
     let res 
@@ -51,6 +95,29 @@ const mutableInstrumentations = {
     target.forEach((v, k) => {
       callback.call(thisArg, wrap(v), wrap(k), this)
     })
+  },
+  [Symbol.iterator]:iterationMethod,
+  entries: iterationMethod,
+  value: valuesIterationMethod
+}
+
+function valuesIterationMethod() {
+  const target = this.raw;
+  const itr = target.values();
+  const wrap =(val) => typeof val === 'object' ? reactive(val) : val;
+  track(target, ITERATE_KEY);
+
+  return {
+    next() {
+      const {value, done} = itr.next();
+      return {
+        value: wrap(value),
+        done
+      }
+    },
+    [Symbol.iterator]() {
+      return this;
+    }
   }
 }
 
