@@ -8,14 +8,15 @@ import {
 } from "./dep";
 import { recordEffectScope } from "./effectScope";
 import { ITERATE_KEY, TriggerType } from "./reactive";
+import { isArray } from "src/shared/general";
 
 const targetMap = new WeakMap();
 
-let shouldTrack = false;
+export let shouldTrack = false;
 
 const trackStack: boolean[] = [];
 
-let activeEffect;
+export let activeEffect;
 
 let activeEffectStack: any[] = [];
 
@@ -119,10 +120,10 @@ export function track(target, key) {
   if (!dep) {
     deps.set(key, (dep = new Set()));
   }
-  trackEffect(dep);
+  trackEffects(dep);
 }
 
-function trackEffect(dep) {
+export function trackEffects(dep) {
   // 副作用是否应该收集
   let shouldTrack = false;
   if (effectTrackDepth <= maxMarkerBits) {
@@ -137,6 +138,30 @@ function trackEffect(dep) {
   if (shouldTrack) {
     dep.add(activeEffect);
     activeEffect.deps.push(dep);
+  }
+}
+
+export function triggerEffects(dep){
+  const effects = isArray(dep) ? dep : [...dep]
+  for(const effect of effects) {
+    if (effect.computed) {
+      triggerEffect(effect)
+    }
+  }
+  for( const effect of effects) {
+    if (!effect.computed) {
+      triggerEffect(effect)
+    }
+  }
+}
+
+function triggerEffect(effect) {
+  if (effect !== activeEffect || effect.allowRecurse) {
+    if (effect.scheduler) {
+      effect.scheduler()
+    } else {
+      effect.run()
+    }
   }
 }
 

@@ -8,6 +8,13 @@ export const initDepMarkers = ({deps}) => {
   }
 }
 
+export const createDep = (effects?) => {
+  const dep = new Set(effects) as any;
+  dep.w = 0;
+  dep.n = 0;
+  return dep;
+}
+
 export const newTracked = (dep) => {
   return (dep.n & trackOpBit) > 0
 }

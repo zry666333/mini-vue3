@@ -2,9 +2,8 @@ export const extend = Object.assign;
 
 export const isFunction = (val) => typeof val === "function";
 
-export const isObject = (val) => {
-  return val && typeof val === "object";
-};
+export const isObject = (val: unknown): val is Record<any, any> =>
+  val !== null && typeof val === 'object'
 
 export const isString = (val: unknown): val is string => typeof val === 'string'
 
